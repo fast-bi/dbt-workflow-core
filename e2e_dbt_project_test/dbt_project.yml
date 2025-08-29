@@ -1,0 +1,44 @@
+name: 'jaffle_shop_dbt_elt'
+
+config-version: 2
+version: '1.0.0'
+
+profile: 'tsb_dbt_bq'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+    - "target"
+    - "dbt_modules"
+    - "logs"
+    - "dbt_packages"
+
+models:
+  jaffle_shop_dbt_elt:
+    jaffle_shop:
+      +schema: jaffle_shop_data
+      materialized: table
+      +re_data_monitored: true
+      +re_data_owners: ['data-bi-team']
+      staging:
+        +schema: jaffle_shop_data
+        materialized: view
+        +re_data_monitored: true
+        +re_data_owners: ['data-bi-team']
+  re_data:
+    enable: true
+
+seeds:
+  +schema: jaffle_shop_data
+  +re_data_monitored: false
+  +re_data_owners: ['data-bi-team']
+
+snapshots:
+  +schema: jaffle_shop_data
+  +re_data_monitored: false
+  +re_data_owners: ['data-bi-team']

@@ -1,0 +1,29 @@
+tsb_dbt_bq:
+  target: vm_sa
+  outputs:
+    sa:
+      type: bigquery
+      method: oauth
+      project: fast-bi-common
+      dataset: e2e_image_test
+      priority: batch
+      threads: 1
+      location: europe-central2
+      job_execution_timeout_seconds: 3600
+      job_retries: 1
+      impersonate_service_account: gitlab-k8s-sa@fast-bi-common.iam.gserviceaccount.com
+    vm_sa:
+      dataset: e2e_image_test
+      job_execution_timeout_seconds: 3600
+      job_retries: 1
+      location: europe-central2
+      method: oauth
+      priority: batch
+      project: fast-bi-common
+      threads: 1
+      type: bigquery
+      # These fields come from the service account json keyfile
+      scopes:
+        - https://www.googleapis.com/auth/bigquery
+        - https://www.googleapis.com/auth/cloud-platform
+        - https://www.googleapis.com/auth/drive
