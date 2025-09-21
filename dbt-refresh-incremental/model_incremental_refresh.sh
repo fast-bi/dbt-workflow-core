@@ -218,7 +218,11 @@ git diff --name-status "$PREVIOUS_COMMIT" "$CURRENT_COMMIT" | \
   awk '{print $2}' > "$CHANGED_FILES_LIST" || true
 
 # Check if any files were found
-CHANGED_FILES_COUNT=$(grep -c . "$CHANGED_FILES_LIST" || echo "0")
+if [ -s "$CHANGED_FILES_LIST" ]; then
+  CHANGED_FILES_COUNT=$(wc -l < "$CHANGED_FILES_LIST")
+else
+  CHANGED_FILES_COUNT=0
+fi
 log "Detected $CHANGED_FILES_COUNT changed SQL files"
 
 # Create a JSON array of changed SQL files
