@@ -40,14 +40,51 @@ then
     rm -rf /data/lost+found
 fi
 
-#Checking DNS Resolve.
+#Checking DNS Resolve with retry logic
 if test "${GIT_URL}"; then
-until curl --output /dev/null --silent --head --fail ${GIT_URL}; do
-    printf "Waiting DNS ${GIT_URL} will be resolved!"
-    sleep 5
-done
+    echo "Checking DNS resolution for ${GIT_URL}..."
+    
+    # Configuration for retry logic (configurable via environment variables)
+    MAX_RETRIES=${DNS_RETRY_MAX_ATTEMPTS:-15}
+    RETRY_INTERVAL=${DNS_RETRY_INTERVAL:-30}
+    CONNECT_TIMEOUT=${DNS_CONNECT_TIMEOUT:-10}
+    MAX_TIMEOUT=${DNS_MAX_TIMEOUT:-30}
+    RETRY_COUNT=0
+    
+    echo "DNS resolution configuration:"
+    echo "  - Max retries: ${MAX_RETRIES} (DNS_RETRY_MAX_ATTEMPTS)"
+    echo "  - Retry interval: ${RETRY_INTERVAL} seconds (DNS_RETRY_INTERVAL)"
+    echo "  - Connect timeout: ${CONNECT_TIMEOUT} seconds (DNS_CONNECT_TIMEOUT)"
+    echo "  - Max timeout: ${MAX_TIMEOUT} seconds (DNS_MAX_TIMEOUT)"
+    
+    while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
+        if curl --output /dev/null --silent --head --fail --connect-timeout "${CONNECT_TIMEOUT}" --max-time "${MAX_TIMEOUT}" "${GIT_URL}"; then
+            echo "DNS resolution successful for ${GIT_URL}"
+            break
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "DNS resolution attempt ${RETRY_COUNT}/${MAX_RETRIES} failed for ${GIT_URL}"
+            
+            if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
+                echo "Retrying in ${RETRY_INTERVAL} seconds..."
+                sleep "${RETRY_INTERVAL}"
+            fi
+        fi
+    done
+    
+    # Check if we exhausted all retries
+    if [ "$RETRY_COUNT" -eq "$MAX_RETRIES" ]; then
+        echo "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts" >&2
+        echo "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts" >> "${LOG_FILE}"
+        echo "Repository server is not accessible. Please check network connectivity and DNS configuration." >&2
+        echo "Repository server is not accessible. Please check network connectivity and DNS configuration." >> "${LOG_FILE}"
+        exit 1
+    fi
 else
     echo "GIT address not described!"
+    echo "GIT_URL environment variable is not set" >&2
+    echo "GIT_URL environment variable is not set" >> "${LOG_FILE}"
+    exit 1
 fi
 
 #Creating a data directory && start working.
