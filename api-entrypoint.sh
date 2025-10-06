@@ -57,33 +57,33 @@ if test "${GIT_URL}"; then
     echo "  - Connect timeout: ${CONNECT_TIMEOUT} seconds"
     echo "  - Max timeout: ${MAX_TIMEOUT} seconds"
     
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if curl --output /dev/null --silent --head --fail --connect-timeout ${CONNECT_TIMEOUT} --max-time ${MAX_TIMEOUT} ${GIT_URL}; then
+    while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
+        if curl --output /dev/null --silent --head --fail --connect-timeout "${CONNECT_TIMEOUT}" --max-time "${MAX_TIMEOUT}" "${GIT_URL}"; then
             echo "DNS resolution successful for ${GIT_URL}"
             break
         else
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "DNS resolution attempt ${RETRY_COUNT}/${MAX_RETRIES} failed for ${GIT_URL}"
             
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
                 echo "Retrying in ${RETRY_INTERVAL} seconds..."
-                sleep $RETRY_INTERVAL
+                sleep "${RETRY_INTERVAL}"
             fi
         fi
     done
     
     # Check if we exhausted all retries
-    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    if [ "$RETRY_COUNT" -eq "$MAX_RETRIES" ]; then
         echo "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts" >&2
-        echo "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts" >> ${LOG_FILE}
+        echo "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts" >> "${LOG_FILE}"
         echo "Repository server is not accessible. Please check network connectivity and DNS configuration." >&2
-        echo "Repository server is not accessible. Please check network connectivity and DNS configuration." >> ${LOG_FILE}
+        echo "Repository server is not accessible. Please check network connectivity and DNS configuration." >> "${LOG_FILE}"
         exit 1
     fi
 else
     echo "GIT address not described!"
     echo "GIT_URL environment variable is not set" >&2
-    echo "GIT_URL environment variable is not set" >> ${LOG_FILE}
+    echo "GIT_URL environment variable is not set" >> "${LOG_FILE}"
     exit 1
 fi
 
