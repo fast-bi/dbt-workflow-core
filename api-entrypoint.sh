@@ -52,10 +52,10 @@ if test "${GIT_URL}"; then
     RETRY_COUNT=0
     
     echo "DNS resolution configuration:"
-    echo "  - Max retries: ${MAX_RETRIES}"
-    echo "  - Retry interval: ${RETRY_INTERVAL} seconds"
-    echo "  - Connect timeout: ${CONNECT_TIMEOUT} seconds"
-    echo "  - Max timeout: ${MAX_TIMEOUT} seconds"
+    echo "  - Max retries: ${MAX_RETRIES} (DNS_RETRY_MAX_ATTEMPTS)"
+    echo "  - Retry interval: ${RETRY_INTERVAL} seconds (DNS_RETRY_INTERVAL)"
+    echo "  - Connect timeout: ${CONNECT_TIMEOUT} seconds (DNS_CONNECT_TIMEOUT)"
+    echo "  - Max timeout: ${MAX_TIMEOUT} seconds (DNS_MAX_TIMEOUT)"
     
     while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
         if curl --output /dev/null --silent --head --fail --connect-timeout "${CONNECT_TIMEOUT}" --max-time "${MAX_TIMEOUT}" "${GIT_URL}"; then
