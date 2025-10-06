@@ -74,13 +74,16 @@ if test "${GIT_URL}"; then
     
     # Check if we exhausted all retries
     if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-        log_error "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts"
-        log_error "Repository server is not accessible. Please check network connectivity and DNS configuration."
+        echo "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts" >&2
+        echo "Failed to resolve DNS for ${GIT_URL} after ${MAX_RETRIES} attempts" >> ${LOG_FILE}
+        echo "Repository server is not accessible. Please check network connectivity and DNS configuration." >&2
+        echo "Repository server is not accessible. Please check network connectivity and DNS configuration." >> ${LOG_FILE}
         exit 1
     fi
 else
     echo "GIT address not described!"
-    log_error "GIT_URL environment variable is not set"
+    echo "GIT_URL environment variable is not set" >&2
+    echo "GIT_URL environment variable is not set" >> ${LOG_FILE}
     exit 1
 fi
 
