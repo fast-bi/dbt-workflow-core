@@ -55,7 +55,7 @@ RUN python -m pip install --upgrade dbt-coverage==0.3.9
 
 # Set docker basics
 WORKDIR /usr/app/dbt/
-LABEL maintainer=TeraSky(c)
+LABEL maintainer=fast.bi(c)
 
 # Copy application files
 COPY ./macros/*.sql /usr/app/dbt/macros/
