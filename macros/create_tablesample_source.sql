@@ -43,13 +43,13 @@
     {{ run_query(query) }}
 {% endmacro %}
 
-{% macro set_data_tablesample(project_id, source_dataset, sample_dataset, table_name, percent_sample) -%}
+{% macro set_data_tablesample(project_id, source_project_id, source_dataset, sample_dataset, table_name, percent_sample) -%}
     {% set engine = target.type -%}
     {% if engine == 'bigquery' -%}
     {% set query %}
     CREATE OR REPLACE TABLE `{{ project_id }}.{{ sample_dataset }}.{{ table_name }}` AS (
     SELECT *
-    FROM `{{ project_id }}.{{ source_dataset }}.{{ table_name }}`
+    FROM `{{ source_project_id }}.{{ source_dataset }}.{{ table_name }}`
     TABLESAMPLE SYSTEM ({{ percent_sample }} PERCENT));
     {% endset %}
     {% elif engine == 'postgres' %}
@@ -127,7 +127,8 @@
                 {{ log("Skipping sample table creation for partitioned table " ~ sample_dataset ~ "." ~table_name, info=True) }}
             {% else %}
                 {{ log("Creating sampled table: " ~ sample_dataset ~ "." ~table_name, info=True) }}
-                {{ set_data_tablesample(sample_database, source_dataset, sample_dataset, table_name, percent_sample) }}
+                {% set source_database = node_value.get('database', sample_database) %}
+                {{ set_data_tablesample(sample_database, source_database, source_dataset, sample_dataset, table_name, percent_sample) }}
             {% endif %}
         {% endfor %}
     {% else %}
