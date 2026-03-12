@@ -481,11 +481,12 @@ else
   rm -f "$CURRENT_FILES"
 
   # If we get here, models existed before and we can proceed with the build
-  # Create a comma-separated list of models for the --select flag
-  MODELS_LIST=$(IFS=,; echo "${INCREMENTAL_MODELS[*]}")
+  # Per dbt docs (https://docs.getdbt.com/reference/node-selection/syntax): space-separated = multiple
+  # arguments (union); comma without whitespace = intersection (AND). Quote the selection for POSIX reliability.
+  MODELS_LIST=$(IFS=' '; echo "${INCREMENTAL_MODELS[*]}")
   
   log "Running full refresh for incremental models: $MODELS_LIST"
-  if ! $(get_dbt_command "dbt build --select $MODELS_LIST --full-refresh") 2>&1 | tee "$DBT_BUILD_LOG"; then
+  if ! $(get_dbt_command "dbt build --select \"$MODELS_LIST\" --full-refresh") 2>&1 | tee "$DBT_BUILD_LOG"; then
     handle_error "Failed to run full refresh for models. Check $DBT_BUILD_LOG for details."
   fi
   

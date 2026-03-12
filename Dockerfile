@@ -9,7 +9,7 @@ ARG build_for=linux/amd64
 ##
 # base image (abstract)
 ##
-FROM --platform=$build_for python:3.11.11-slim-bullseye as base
+FROM --platform=$build_for python:3.11.15-slim-bookworm as base
 LABEL maintainer=support@fast.bi
 
 # System setup
@@ -31,6 +31,8 @@ RUN apt-get update \
 RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list
 RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
 RUN apt update && apt install google-cloud-sdk -y
+# Remove anthoscli (CVE-2025-68121: Go stdlib in bundled binary); workflow only needs gcloud auth/config
+RUN rm -f /usr/lib/google-cloud-sdk/bin/anthoscli
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get clean \
   && rm -rf \
@@ -47,11 +49,11 @@ RUN python -m pip install --upgrade pip setuptools wheel yq pytz pandas colorama
 RUN python -m pip install --upgrade acryl-datahub
 RUN python -m pip install --upgrade 'acryl-datahub[dbt]'
 RUN python -m pip install --upgrade 'acryl-datahub[datahub-rest]'
-RUN python -m pip install --no-cache-dir dbt-bigquery==1.9.2
-RUN python -m pip install --no-cache-dir dbt-snowflake==1.9.4
-RUN python -m pip install --no-cache-dir dbt-redshift==1.9.5
-RUN python -m pip install --no-cache-dir dbt-fabric==1.9.6
-RUN python -m pip install --upgrade dbt-coverage==0.3.9
+RUN python -m pip install --no-cache-dir dbt-bigquery==1.10.3
+RUN python -m pip install --no-cache-dir dbt-snowflake==1.10.7
+RUN python -m pip install --no-cache-dir dbt-redshift==1.10.1
+RUN python -m pip install --no-cache-dir dbt-fabric==1.9.8
+RUN python -m pip install --upgrade dbt-coverage==0.4.1
 
 # Set docker basics
 WORKDIR /usr/app/dbt/
