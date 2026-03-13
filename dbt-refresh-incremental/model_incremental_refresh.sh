@@ -482,11 +482,22 @@ else
 
   # If we get here, models existed before and we can proceed with the build
   # Per dbt docs: space-separated = multiple arguments (union); comma = intersection (AND).
-  # Do not quote $MODELS_LIST here so the shell passes each model as a separate --select argument.
+  # Build argv explicitly so --full-refresh is never dropped by eval/shell parsing.
   MODELS_LIST=$(IFS=' '; echo "${INCREMENTAL_MODELS[*]}")
   
   log "Running full refresh for incremental models: $MODELS_LIST"
-  if ! $(get_dbt_command "dbt build --select $MODELS_LIST --full-refresh") 2>&1 | tee "$DBT_BUILD_LOG"; then
+  DBT_BUILD_ARGS=(build --full-refresh --select)
+  for m in $MODELS_LIST; do
+    DBT_BUILD_ARGS+=("$m")
+  done
+  if [ -n "$TARGET" ]; then
+    DBT_BUILD_ARGS+=(--target "$TARGET")
+  fi
+  if [ -n "$EXCLUDE_PATTERN" ]; then
+    DBT_BUILD_ARGS+=(--exclude "$EXCLUDE_PATTERN")
+  fi
+  log "Executing command: dbt ${DBT_BUILD_ARGS[*]}"
+  if ! dbt "${DBT_BUILD_ARGS[@]}" 2>&1 | tee "$DBT_BUILD_LOG"; then
     handle_error "Failed to run full refresh for models. Check $DBT_BUILD_LOG for details."
   fi
   
