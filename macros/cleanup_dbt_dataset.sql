@@ -3,19 +3,21 @@
 --    dbt run-operation cleanup_dataset
 -- To only see the commands that it is about to perform:
 --    dbt run-operation cleanup_dataset --args '{"dry_run": True}'
-{% macro cleanup_dbt_dataset(dry_run=False) %}
+{% macro cleanup_dbt_dataset(dry_run=False, tags=[]) %}
     {% if execute %}
         {% set current_models=[] %}
         {% set schema_info = {"name": none} %}
         {% do log("Starting cleanup process for database type: " ~ target.type, info=True) %}
         {% do log("Target schema: " ~ target.schema, info=True) %}
 
-        {% for node in graph.nodes.values() | selectattr("resource_type", "in", ["model", "seed"])%}
-            {% do log("Processing node: " ~ node.name ~ " with database: " ~ node.database ~ " and schema: " ~ node.schema, info=True) %}
-            {% do current_models.append(node.name.upper()) %}
-            {% if schema_info.name is none %}
-                {% do log("Setting schema name to: " ~ node.schema, info=True) %}
-                {% do schema_info.update({"name": node.schema}) %}
+        {% for node in graph.nodes.values() | selectattr("resource_type", "in", ["model", "seed"]) %}
+            {% if tags | length == 0 or (node.tags | select("in", tags) | list | length > 0) %}
+                {% do log("Processing node: " ~ node.name ~ " with database: " ~ node.database ~ " and schema: " ~ node.schema, info=True) %}
+                {% do current_models.append(node.name.upper()) %}
+                {% if schema_info.name is none %}
+                    {% do log("Setting schema name to: " ~ node.schema, info=True) %}
+                    {% do schema_info.update({"name": node.schema}) %}
+                {% endif %}
             {% endif %}
         {% endfor %}
 
@@ -28,15 +30,17 @@
         {% if execute %}
             {% set current_model_locations={} %}
 
-            {% for node in graph.nodes.values() | selectattr("resource_type", "in", ["model", "seed"])%}
-                {% if not node.database in current_model_locations %}
-                    {% do current_model_locations.update({node.database: {}}) %}
+            {% for node in graph.nodes.values() | selectattr("resource_type", "in", ["model", "seed"]) %}
+                {% if tags | length == 0 or (node.tags | select("in", tags) | list | length > 0) %}
+                    {% if not node.database in current_model_locations %}
+                        {% do current_model_locations.update({node.database: {}}) %}
+                    {% endif %}
+                    {% if not node.schema in current_model_locations[node.database] %}
+                        {% do current_model_locations[node.database].update({node.schema: []}) %}
+                    {% endif %}
+                    {% set table_name = node.alias if node.alias else node.name %}
+                    {% do current_model_locations[node.database][node.schema].append(table_name) %}
                 {% endif %}
-                {% if not node.schema in current_model_locations[node.database] %}
-                    {% do current_model_locations[node.database].update({node.schema: []}) %}
-                {% endif %}
-                {% set table_name = node.alias if node.alias else node.name %}
-                {% do current_model_locations[node.database][node.schema].append(table_name) %}
             {% endfor %}
         {% endif %}
 

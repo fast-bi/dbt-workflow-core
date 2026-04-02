@@ -33,8 +33,15 @@ value="${DATASET_LABEL_VALUE}"
 echo "End DBT Compilation procedure."
 
 echo "Preparing BQ Dataset list for labeling."
-datasets=$(jq '.nodes[] | select(.resource_type == "model" or .resource_type == "seed") | .schema' ./target/manifest.json | sort | uniq | tr -d '"')
-database=$(jq '.nodes[] | select(.resource_type == "model" or .resource_type == "seed") | .database' ./target/manifest.json | sort | uniq | tr -d '"')
+if [ -n "${E2E_MATCHED_TAGS}" ]; then
+    echo "Filtering datasets by matched tags: ${E2E_MATCHED_TAGS}"
+    TAG_FILTER=$(echo "${E2E_MATCHED_TAGS}" | tr ',' '\n' | jq -R . | jq -sc .)
+    datasets=$(jq --argjson tags "${TAG_FILTER}" '.nodes[] | select(.resource_type == "model" or .resource_type == "seed") | select(.tags as $t | $tags | map(. as $tag | $t | any(. == $tag)) | any) | .schema' ./target/manifest.json | sort | uniq | tr -d '"')
+    database=$(jq --argjson tags "${TAG_FILTER}" '.nodes[] | select(.resource_type == "model" or .resource_type == "seed") | select(.tags as $t | $tags | map(. as $tag | $t | any(. == $tag)) | any) | .database' ./target/manifest.json | sort | uniq | tr -d '"')
+else
+    datasets=$(jq '.nodes[] | select(.resource_type == "model" or .resource_type == "seed") | .schema' ./target/manifest.json | sort | uniq | tr -d '"')
+    database=$(jq '.nodes[] | select(.resource_type == "model" or .resource_type == "seed") | .database' ./target/manifest.json | sort | uniq | tr -d '"')
+fi
 echo "List on Database ${database}:"
 printf '%s\n' "${datasets[@]}"
 
