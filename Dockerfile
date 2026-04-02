@@ -53,6 +53,9 @@ RUN python -m pip install --no-cache-dir dbt-bigquery==1.10.3
 RUN python -m pip install --no-cache-dir dbt-snowflake==1.10.7
 RUN python -m pip install --no-cache-dir dbt-redshift==1.10.1
 RUN python -m pip install --no-cache-dir dbt-fabric==1.9.8
+# pre-commit: runs dbt-checkpoint hooks in CI
+# dbt-checkpoint: installed system-wide so hooks use language: system (no isolated venv,
+#                 no GitHub clone at runtime — scripts are already in PATH)
 RUN python -m pip install --upgrade pre-commit dbt-checkpoint
 
 # Set docker basics
