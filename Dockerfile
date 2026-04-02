@@ -31,7 +31,6 @@ RUN apt-get update \
 RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list
 RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
 RUN apt update && apt install google-cloud-sdk -y
-# Remove anthoscli (CVE-2025-68121: Go stdlib in bundled binary); workflow only needs gcloud auth/config
 RUN rm -f /usr/lib/google-cloud-sdk/bin/anthoscli
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get clean \
@@ -53,7 +52,7 @@ RUN python -m pip install --no-cache-dir dbt-bigquery==1.10.3
 RUN python -m pip install --no-cache-dir dbt-snowflake==1.10.7
 RUN python -m pip install --no-cache-dir dbt-redshift==1.10.1
 RUN python -m pip install --no-cache-dir dbt-fabric==1.9.8
-RUN python -m pip install --upgrade dbt-coverage==0.4.1
+RUN python -m pip install --upgrade pre-commit
 
 # Set docker basics
 WORKDIR /usr/app/dbt/
@@ -62,18 +61,14 @@ LABEL maintainer=fast.bi(c)
 # Copy application files
 COPY ./macros/*.sql /usr/app/dbt/macros/
 COPY ./api-entrypoint.sh /usr/app/dbt/
-#DEPRECATED COPY ./cleanup_e2e_test.sh /usr/app/dbt/
 COPY ./dbt_bq_dataset_label_add.sh /usr/app/dbt/
-COPY ./dbt_lint/*.py /usr/app/dbt/dbt_lint/
 COPY ./dbt-refresh-incremental/model_incremental_refresh.sh /usr/app/dbt/
 RUN mkdir -p /usr/app/dbt/metadata_cli/{bigquery,redshift,snowflake}
 COPY ./metadata_cli/ /usr/app/dbt/metadata_cli/
 
 # Set permissions
 RUN chmod 755 /usr/app/dbt/api-entrypoint.sh
-#DEPRECATED RUN chmod 755 /usr/app/dbt/cleanup_e2e_test.sh
 RUN chmod 755 /usr/app/dbt/dbt_bq_dataset_label_add.sh
-RUN chmod 755 /usr/app/dbt/dbt_lint/*.py
 RUN chmod 755 /usr/app/dbt/model_incremental_refresh.sh
 
 ENTRYPOINT ["/bin/bash", "-c", "/usr/app/dbt/api-entrypoint.sh" ]
