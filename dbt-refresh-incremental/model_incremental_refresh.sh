@@ -346,7 +346,9 @@ while read -r sql_file; do
   if [ "$is_incremental" = "true" ]; then
     log "Found incremental model: $model_name"
     INCREMENTAL_MODELS+=("$model_name")
-    REFRESH_COMMANDS+=("$(get_dbt_command "dbt build --select $model_name --full-refresh")")
+    # +model_name includes all upstream parents in --select so full-refresh rebuilds
+    # dependencies when their SQL/schema changed (e.g. new columns referenced here).
+    REFRESH_COMMANDS+=("$(get_dbt_command "dbt build --full-refresh --select +$model_name")")
   else
     log "Model $model_name is not incremental, skipping full-refresh"
   fi
@@ -485,10 +487,10 @@ else
   # Build argv explicitly so --full-refresh is never dropped by eval/shell parsing.
   MODELS_LIST=$(IFS=' '; echo "${INCREMENTAL_MODELS[*]}")
   
-  log "Running full refresh for incremental models: $MODELS_LIST"
+  log "Running full refresh for incremental models (including upstream parents): $MODELS_LIST"
   DBT_BUILD_ARGS=(build --full-refresh --select)
   for m in $MODELS_LIST; do
-    DBT_BUILD_ARGS+=("$m")
+    DBT_BUILD_ARGS+=("+$m")
   done
   if [ -n "$TARGET" ]; then
     DBT_BUILD_ARGS+=(--target "$TARGET")
