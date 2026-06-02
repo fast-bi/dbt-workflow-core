@@ -42,27 +42,43 @@
                     {% do current_model_locations[node.database][node.schema].append(table_name) %}
                 {% endif %}
             {% endfor %}
+
+            {% set existing_datasets = {} %}
+            {% for database in current_model_locations.keys() %}
+                {% set all_datasets = current_model_locations[database].keys() | list %}
+                {% set schema_check_query %}
+                    SELECT schema_name
+                    FROM `{{ database }}.INFORMATION_SCHEMA.SCHEMATA`
+                    WHERE schema_name IN ({% for d in all_datasets %}'{{ d }}'{% if not loop.last %}, {% endif %}{% endfor %})
+                {% endset %}
+                {% set schema_check_results = run_query(schema_check_query) %}
+                {% do existing_datasets.update({database: schema_check_results.columns[0].values()}) %}
+            {% endfor %}
         {% endif %}
 
         {% set cleanup_query %}
             with models_to_drop as (
+                select null as table_type, null as table_catalog, null as table_schema, null as table_name, null as relation_type, null as relation_name, null as schema_relation_name where false
                 {% for database in current_model_locations.keys() %}
-                    {% if loop.index > 1 %}union all{% endif %}
-                    {% for dataset, tables  in current_model_locations[database].items() %}
-                        {% if loop.index > 1 %}union all{% endif %}
-                        select
-                            table_type,
-                            table_catalog,
-                            table_schema,
-                            table_name,
-                            case
-                                when table_type = 'BASE TABLE' then 'TABLE'
-                                when table_type = 'VIEW' then 'VIEW'
-                            end as relation_type,
-                            array_to_string([table_catalog, table_schema, table_name], '.') as relation_name,
-                            array_to_string([table_catalog, table_schema], '.') as schema_relation_name
-                        from `{{ dataset }}.INFORMATION_SCHEMA.TABLES`
-                        where table_name in ({% for table in tables %}'{{ table }}'{% if not loop.last %}, {% endif %}{% endfor %})
+                    {% for dataset, tables in current_model_locations[database].items() %}
+                        {% if dataset in existing_datasets[database] %}
+                            union all
+                            select
+                                table_type,
+                                table_catalog,
+                                table_schema,
+                                table_name,
+                                case
+                                    when table_type = 'BASE TABLE' then 'TABLE'
+                                    when table_type = 'VIEW' then 'VIEW'
+                                end as relation_type,
+                                array_to_string([table_catalog, table_schema, table_name], '.') as relation_name,
+                                array_to_string([table_catalog, table_schema], '.') as schema_relation_name
+                            from `{{ dataset }}.INFORMATION_SCHEMA.TABLES`
+                            where table_name in ({% for table in tables %}'{{ table }}'{% if not loop.last %}, {% endif %}{% endfor %})
+                        {% else %}
+                            {% do log("[WARNING] Skipping non-existent dataset: " ~ dataset, info=True) %}
+                        {% endif %}
                     {% endfor %}
                 {% endfor %}
             ),
