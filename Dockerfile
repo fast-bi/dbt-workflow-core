@@ -48,11 +48,12 @@ RUN python -m pip install --upgrade pip setuptools wheel yq pytz pandas colorama
 RUN python -m pip install --upgrade acryl-datahub
 RUN python -m pip install --upgrade 'acryl-datahub[dbt]'
 RUN python -m pip install --upgrade 'acryl-datahub[datahub-rest]'
+RUN python -m pip install --no-cache-dir dbt-core==1.10.19
 RUN python -m pip install --no-cache-dir dbt-bigquery==1.10.3
 RUN python -m pip install --no-cache-dir dbt-snowflake==1.10.7
 RUN python -m pip install --no-cache-dir dbt-redshift==1.10.1
 RUN python -m pip install --no-cache-dir dbt-fabric==1.9.8
-RUN python -m pip install --upgrade dbt-bouncer
+RUN python -m pip install --no-cache-dir dbt-bouncer==3.3.0
 
 # Set docker basics
 WORKDIR /usr/app/dbt/
