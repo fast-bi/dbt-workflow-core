@@ -58,7 +58,7 @@
 
         {% set cleanup_query %}
             with models_to_drop as (
-                select null as table_type, null as table_catalog, null as table_schema, null as table_name, null as relation_type, null as relation_name, null as schema_relation_name where false
+                select null as table_type, null as table_catalog, null as table_schema, null as table_name, null as relation_type, null as relation_name, null as schema_relation_name from (select 1) where false
                 {% for database in current_model_locations.keys() %}
                     {% for dataset, tables in current_model_locations[database].items() %}
                         {% if dataset in existing_datasets[database] %}
