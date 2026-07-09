@@ -397,9 +397,14 @@ else
     log "  - $line"
   done
   
+  # Models that existed before this commit and should be full-refreshed.
+  # Newly-added models are skipped (first deployment) without aborting the
+  # rest of the batch.
+  MODELS_TO_BUILD=()
+
   for model in "${INCREMENTAL_MODELS[@]}"; do
     log "Processing model: $model"
-    
+
     # Get the actual path from the changed files list
     model_path=$(grep -E "/${model}\.sql$" "$CHANGED_FILES_LIST" | head -n 1)
     if [ -z "$model_path" ]; then
@@ -460,58 +465,60 @@ else
     log "  - Is new in current commit: $IS_NEW_IN_CURRENT_COMMIT"
     
     if [ "$IS_NEW_IN_CURRENT_COMMIT" = "true" ]; then
-      log "✗ Model is new in current commit - appears to be first deployment"
-      tmp_file=$(mktemp)
-      jq --arg model "$model" '.status = "skipped" | .message = "First deployment of model: " + $model' "$REPORT_FILE" > "$tmp_file" && mv "$tmp_file" "$REPORT_FILE"
-      # Clean up and exit gracefully
-      rm -f "$CHANGED_FILES_LIST" "$CHANGED_FILES_JSON" "$CURRENT_FILES"
-      log "Exiting gracefully - first deployment"
-      exit 0
+      log "✗ Model is new in current commit - appears to be first deployment, skipping full-refresh for this model only"
+      continue
     else
       log "✓ Model exists and was modified in current commit"
-      
+
       # Check what type of changes were made
       if echo "$CURRENT_CHANGES" | grep -q "^M"; then
         log "  - Model SQL or config was modified"
       elif echo "$CURRENT_CHANGES" | grep -q "^R"; then
         log "  - Model was renamed/moved"
       fi
+
+      MODELS_TO_BUILD+=("$model")
     fi
   done
 
   # Clean up temporary files
   rm -f "$CURRENT_FILES"
 
-  # If we get here, models existed before and we can proceed with the build
-  # Per dbt docs: space-separated = multiple arguments (union); comma = intersection (AND).
-  # Build argv explicitly so --full-refresh is never dropped by eval/shell parsing.
-  MODELS_LIST=$(IFS=' '; echo "${INCREMENTAL_MODELS[*]}")
-  
-  log "Running full refresh for incremental models (including upstream parents): $MODELS_LIST"
-  DBT_BUILD_ARGS=(build --full-refresh --select)
-  for m in $MODELS_LIST; do
-    DBT_BUILD_ARGS+=("+$m")
-  done
-  if [ -n "$TARGET" ]; then
-    DBT_BUILD_ARGS+=(--target "$TARGET")
-  fi
-  if [ -n "$EXCLUDE_PATTERN" ]; then
-    DBT_BUILD_ARGS+=(--exclude "$EXCLUDE_PATTERN")
-  fi
-  log "Executing command: dbt ${DBT_BUILD_ARGS[*]}"
-  if ! dbt "${DBT_BUILD_ARGS[@]}" 2>&1 | tee "$DBT_BUILD_LOG"; then
-    handle_error "Failed to run full refresh for models. Check $DBT_BUILD_LOG for details."
-  fi
-  
-  # Only build the rest if --build-rest is specified
-  if [ "$BUILD_REST" = "true" ]; then
-    log "Running normal build for the rest of the project"
-    if ! $(get_dbt_command "dbt build") 2>&1 | tee -a "$DBT_BUILD_LOG"; then
-      handle_error "Failed to run normal build for the rest of the project. Check $DBT_BUILD_LOG for details."
-    fi
+  if [ ${#MODELS_TO_BUILD[@]} -eq 0 ]; then
+    log "All changed incremental models are first deployments, nothing to full-refresh"
+    tmp_file=$(mktemp)
+    jq '.status = "completed" | .message = "All changed incremental models are first deployments, skipping build"' "$REPORT_FILE" > "$tmp_file" && mv "$tmp_file" "$REPORT_FILE"
   else
-    log "Skipping build of the rest of the project (use --build-rest to enable)"
-    log "NOTE: The rest of the project will be built by Airflow DAGs in production"
+    # Per dbt docs: space-separated = multiple arguments (union); comma = intersection (AND).
+    # Build argv explicitly so --full-refresh is never dropped by eval/shell parsing.
+    MODELS_LIST=$(IFS=' '; echo "${MODELS_TO_BUILD[*]}")
+
+    log "Running full refresh for incremental models (including upstream parents): $MODELS_LIST"
+    DBT_BUILD_ARGS=(build --full-refresh --select)
+    for m in $MODELS_LIST; do
+      DBT_BUILD_ARGS+=("+$m")
+    done
+    if [ -n "$TARGET" ]; then
+      DBT_BUILD_ARGS+=(--target "$TARGET")
+    fi
+    if [ -n "$EXCLUDE_PATTERN" ]; then
+      DBT_BUILD_ARGS+=(--exclude "$EXCLUDE_PATTERN")
+    fi
+    log "Executing command: dbt ${DBT_BUILD_ARGS[*]}"
+    if ! dbt "${DBT_BUILD_ARGS[@]}" 2>&1 | tee "$DBT_BUILD_LOG"; then
+      handle_error "Failed to run full refresh for models. Check $DBT_BUILD_LOG for details."
+    fi
+
+    # Only build the rest if --build-rest is specified
+    if [ "$BUILD_REST" = "true" ]; then
+      log "Running normal build for the rest of the project"
+      if ! $(get_dbt_command "dbt build") 2>&1 | tee -a "$DBT_BUILD_LOG"; then
+        handle_error "Failed to run normal build for the rest of the project. Check $DBT_BUILD_LOG for details."
+      fi
+    else
+      log "Skipping build of the rest of the project (use --build-rest to enable)"
+      log "NOTE: The rest of the project will be built by Airflow DAGs in production"
+    fi
   fi
 fi
 
