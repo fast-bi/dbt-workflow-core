@@ -1,1 +1,10 @@
+.git
+.github
+.gitignore
+.gitlab-ci.yml
 .gitlab-ci-v2.yml
+.dockerignore
+README.md
+LICENSE
+build.sh
+e2e_dbt_project_test

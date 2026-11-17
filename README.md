@@ -23,7 +23,21 @@ This Docker image provides a complete dbt execution environment for Kubernetes-b
 ## Docker Image
 
 ### Base Image
-- **Base**: Python 3.11.11-slim-bullseye
+- **Base**: `python:3.12-slim-bookworm`
+
+### Installed tools
+Python package versions are pinned in `requirements.txt` and installed in one resolve.
+
+| Purpose | Tools |
+|---|---|
+| dbt (1.x) | dbt-core 1.12.7, dbt-bigquery 1.12.3, dbt-snowflake 1.12.5, dbt-redshift 1.11.2, dbt-fabric 1.12.0 |
+| Code quality | `dbtf lint` / `dbtf format` (dbt v2 binary 2.0.12, lint and format only), dbt-bouncer 4.7.0, yamllint 1.38.0 |
+| Metadata | acryl-datahub 1.7.0.20 (dbt source, REST sink) |
+| Cloud | Google Cloud CLI (gcloud, bq, gsutil) |
+
+### DataHub recipes (`metadata_cli/<warehouse>/`)
+- `datahub-metadata-collector.dhub.yml`: test results only, used by the entrypoint after `dbt test`.
+- `datahub-catalog-collector.dhub.yml`: full catalog ingestion with links from each model to its file in the Git repository. Run `source /usr/app/dbt/metadata_cli/datahub_git_env.sh` first; it derives `DBT_GIT_REPO_URL`, `DBT_GIT_BRANCH` and `DBT_GIT_URL_SUBDIR` from the CI variables.
 
 ### Build
 
@@ -39,7 +53,7 @@ docker build -t dbt-workflow-core .
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `build_for` | Target platform for the build | `linux/amd64` |
+| `PYTHON_VERSION` | Python version of the base image | `3.12` |
 
 ### Environment Variables
 

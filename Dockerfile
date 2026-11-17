@@ -1,75 +1,78 @@
+# syntax=docker/dockerfile:1
 ##
-#  Generic dockerfile for dbt image building.
-#  See README for operational details
+#  dbt-workflow-core
+#  One image for running dbt (dbt-core 1.x), code-quality checks
+#  (dbtf lint / dbtf format, dbt-bouncer, yamllint) and DataHub ingestion.
+#  Python package versions are pinned in requirements.txt.
+#
+#  `dbt`  = dbt-core 1.x (pip) - runs, tests and parses the projects.
+#  `dbtf` = dbt v2 binary      - used ONLY for `dbtf lint` and `dbtf format`,
+#           which need no warehouse connection. Projects are not migrated.
+#  Target platform is chosen at build time: docker buildx build --platform ...
 ##
+ARG PYTHON_VERSION=3.12
 
-# Top level build args
-ARG build_for=linux/amd64
+FROM python:${PYTHON_VERSION}-slim-bookworm
+LABEL maintainer="support@fast.bi" \
+      org.opencontainers.image.title="dbt-workflow-core" \
+      org.opencontainers.image.vendor="fast.bi" \
+      org.opencontainers.image.source="https://github.com/fast-bi/dbt-workflow-core"
 
-##
-# base image (abstract)
-##
-FROM --platform=$build_for python:3.11.15-slim-bookworm as base
-LABEL maintainer=support@fast.bi
+ENV PYTHONIOENCODING=utf-8 \
+    LANG=C.UTF-8 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    DBT_ENGINE_SEND_ANONYMOUS_USAGE_STATS=false
 
-# System setup
+# System packages + Google Cloud CLI (gcloud, bq, gsutil) in a single layer
 RUN apt-get update \
-  && apt-get dist-upgrade -y \
+  && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends \
-    git \
-    ssh-client \
-    software-properties-common \
-    make \
-    build-essential \
     ca-certificates \
-    libpq-dev \
     curl \
-    apt-transport-https \
+    git \
     gnupg \
-    cl-base64 \
-    jq
-RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list
-RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
-RUN apt update && apt install google-cloud-sdk -y
-RUN rm -f /usr/lib/google-cloud-sdk/bin/anthoscli
-RUN apt-get update && apt-get upgrade -y
-RUN apt-get clean \
-  && rm -rf \
-    /var/lib/apt/lists/* \
-    /tmp/* \
-    /var/tmp/*
+    jq \
+    make \
+    openssh-client \
+  && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+    | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+  && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+    > /etc/apt/sources.list.d/google-cloud-sdk.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends google-cloud-cli \
+  && rm -f /usr/lib/google-cloud-sdk/bin/anthoscli \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Env vars
-ENV PYTHONIOENCODING=utf-8
-ENV LANG=C.UTF-8
+# Python packages: one resolve, pinned versions, fail the build on conflicts
+COPY requirements.txt /tmp/requirements.txt
+RUN python -m pip install --upgrade pip setuptools wheel \
+  && python -m pip install -r /tmp/requirements.txt \
+  && python -m pip check \
+  && rm -f /tmp/requirements.txt \
+  && dbt --version \
+  && dbt-bouncer --version \
+  && yamllint --version \
+  && datahub version
 
-# Update python packages
-RUN python -m pip install --upgrade pip setuptools wheel yq pytz pandas colorama --no-cache-dir
-RUN python -m pip install --upgrade acryl-datahub
-RUN python -m pip install --upgrade 'acryl-datahub[dbt]'
-RUN python -m pip install --upgrade 'acryl-datahub[datahub-rest]'
-RUN python -m pip install --no-cache-dir dbt-core==1.10.19
-RUN python -m pip install --no-cache-dir dbt-bigquery==1.10.3
-RUN python -m pip install --no-cache-dir dbt-snowflake==1.10.7
-RUN python -m pip install --no-cache-dir dbt-redshift==1.10.1
-RUN python -m pip install --no-cache-dir dbt-fabric==1.9.8
-RUN python -m pip install --no-cache-dir dbt-bouncer==3.3.0
+# dbt v2 binary for linting/formatting only, exposed as `dbtf` so it never
+# shadows dbt-core's `dbt`
+ARG DBT_V2_VERSION=2.0.12
+RUN curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh \
+    | sh -s -- --version "${DBT_V2_VERSION}" --prefix /opt/dbt-v2 \
+  && ln -s /opt/dbt-v2/bin/dbt /usr/local/bin/dbtf \
+  && dbtf --version \
+  && dbt --version | grep -q "installed: 1\."
 
-# Set docker basics
 WORKDIR /usr/app/dbt/
-LABEL maintainer=fast.bi(c)
 
-# Copy application files
-COPY ./macros/*.sql /usr/app/dbt/macros/
-COPY ./api-entrypoint.sh /usr/app/dbt/
-COPY ./dbt_bq_dataset_label_add.sh /usr/app/dbt/
-COPY ./dbt-refresh-incremental/model_incremental_refresh.sh /usr/app/dbt/
-RUN mkdir -p /usr/app/dbt/metadata_cli/{bigquery,redshift,snowflake}
-COPY ./metadata_cli/ /usr/app/dbt/metadata_cli/
+# Application files
+COPY macros/ /usr/app/dbt/macros/
+COPY metadata_cli/ /usr/app/dbt/metadata_cli/
+COPY --chmod=755 api-entrypoint.sh dbt_bq_dataset_label_add.sh /usr/app/dbt/
+COPY --chmod=755 dbt-refresh-incremental/model_incremental_refresh.sh /usr/app/dbt/
 
-# Set permissions
-RUN chmod 755 /usr/app/dbt/api-entrypoint.sh
-RUN chmod 755 /usr/app/dbt/dbt_bq_dataset_label_add.sh
-RUN chmod 755 /usr/app/dbt/model_incremental_refresh.sh
-
-ENTRYPOINT ["/bin/bash", "-c", "/usr/app/dbt/api-entrypoint.sh" ]
+ENTRYPOINT ["/bin/bash", "-c", "/usr/app/dbt/api-entrypoint.sh"]

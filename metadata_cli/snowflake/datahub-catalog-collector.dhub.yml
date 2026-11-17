@@ -1,0 +1,42 @@
+# DataHub recipe: full dbt catalog ingestion (models, sources, seeds,
+# snapshots, lineage, documentation) for a snowflake project.
+#
+# Run from the dbt project root after `dbt docs generate`:
+#   source /usr/app/dbt/metadata_cli/datahub_git_env.sh
+#   datahub ingest -c /usr/app/dbt/metadata_cli/snowflake/datahub-catalog-collector.dhub.yml
+#
+# Required environment variables (DataHub fails on any unset variable):
+#   DBT_PROJECT_ROOT     absolute path of the dbt project folder
+#   PROJECT_LEVEL        DataHub environment, e.g. PROD
+#   DBT_GIT_REPO_URL     https URL of the repository, without ".git"
+#   DBT_GIT_BRANCH       branch the links should point to, e.g. main
+#   DBT_GIT_URL_SUBDIR   folder of the dbt project inside the repository
+#   DATAHUB_GMS_URL / DATAHUB_GMS_TOKEN   used by the default datahub-rest sink
+# datahub_git_env.sh derives the three DBT_GIT_* values from the CI variables.
+source:
+  type: "dbt"
+  config:
+    # Coordinates
+    manifest_path: "${DBT_PROJECT_ROOT}/target/manifest.json"
+    catalog_path: "${DBT_PROJECT_ROOT}/target/catalog.json"
+    run_results_paths:
+      - "${DBT_PROJECT_ROOT}/target/run_results.json"
+    entities_enabled:
+      test_results: "NO"
+
+    # Options
+    target_platform: "snowflake"
+    env: "${PROJECT_LEVEL}"
+
+    # Link every model, seed and snapshot to its own file in the repository.
+    # The URL format is inferred for GitHub and GitLab from the repo URL;
+    # url_subdir is prepended because dbt file paths are relative to the
+    # project folder, not to the repository root.
+    git_info:
+      repo: "${DBT_GIT_REPO_URL}"
+      branch: "${DBT_GIT_BRANCH}"
+      url_subdir: "${DBT_GIT_URL_SUBDIR}"
+
+    convert_column_urns_to_lowercase: True
+    enable_owner_extraction: True
+# sink configs
